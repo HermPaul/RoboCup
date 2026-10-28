@@ -87,6 +87,18 @@ class Exercise1Env(SSLBaseEnv):
 
         # Create here your reward function
         reward = 0.0
+        # approach reward
+        dx = blue_robot.x - ball.x_m
+        dy = blue_robot.y - ball.y_m
+        dist_robot_ball = (dx ** 2 + dy ** 2) ** 0.5
+        reward = -dist_robot_ball
+
+        # check if face of robot is kicking the ball
+        if blue_robot.infrared:
+            reward = 100
+            done = True
+        print(reward)
+
         return reward, done
 
     def _get_initial_positions_frame(self):
