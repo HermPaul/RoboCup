@@ -91,13 +91,35 @@ class Exercise1Env(SSLBaseEnv):
         dx = blue_robot.x - ball.x_m
         dy = blue_robot.y - ball.y_m
         dist_robot_ball = (dx ** 2 + dy ** 2) ** 0.5
-        reward = -dist_robot_ball
+        reward = -dist_robot_ball # * 0.1 to weigh it smaller
 
         # check if face of robot is kicking the ball
         if blue_robot.infrared:
             reward = 100
             done = True
-        print(reward)
+        #print(reward)
+
+        # alignment reward 
+        # center is (0,0)
+        goal_x = (self.canonical_field.length_m / 2.0)
+        goal_y = 0.0
+        # positional diff ball and goal
+        bg_x = goal_x -ball.x_m 
+        bg_y = goal_y - ball.y_m 
+        dist_bg = (bg_x**2 + bg_y**2) ** 0.5
+
+        rb_x = ball.x_m - blue_robot.x
+        rb_y = ball.y_m - blue_robot.y
+        dist_rb = (rb_x**2 + rb_y**2) ** 0.5
+
+        angular_alignment = 0.0
+        # check if the vectors show in the same direction
+        dot_product = (rb_x * bg_x) + (rb_y * bg_y)
+        angular_alignment = dot_product / (dist_bg * dist_rb)
+        print(angular_alignment)
+
+        reward
+    
 
         return reward, done
 
