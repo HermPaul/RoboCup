@@ -91,12 +91,8 @@ class Exercise1Env(SSLBaseEnv):
         dx = blue_robot.x - ball.x_m
         dy = blue_robot.y - ball.y_m
         dist_robot_ball = (dx ** 2 + dy ** 2) ** 0.5
-        reward = -dist_robot_ball # * 0.1 to weigh it smaller
+        reward -= dist_robot_ball # * 0.1 to weigh it smaller
 
-        # check if face of robot is kicking the ball
-        if blue_robot.infrared:
-            reward = 100
-            done = True
         #print(reward)
 
         # alignment reward 
@@ -116,11 +112,16 @@ class Exercise1Env(SSLBaseEnv):
         # check if the vectors show in the same direction
         dot_product = (rb_x * bg_x) + (rb_y * bg_y)
         angular_alignment = dot_product / (dist_bg * dist_rb)
-        print(angular_alignment)
+        reward += angular_alignment
 
-        reward
+        if blue_robot.infrared and (-0.1 <= angular_alignment <= 0.1):
+            reward = 100
+
+        if(respawn_reason == "goal"):
+            reward += 500 
+            done = True
     
-
+        print(reward)
         return reward, done
 
     def _get_initial_positions_frame(self):
