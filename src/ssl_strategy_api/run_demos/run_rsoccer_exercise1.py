@@ -229,6 +229,7 @@ def main() -> int:
         default="ssl_strategy_api.strategies.striker:StrikerStrategy",
         help="Blue strategy class as module.path:ClassName",
     )
+    
     parser.add_argument(
         "--yellow-strategy",
         default="ssl_strategy_api.strategies.idle_goalkeeper_rl:IdleGoalkeeperStrategy",

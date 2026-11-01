@@ -44,22 +44,66 @@ class StrikerStrategy:
         if robot is None:
             return {}
 
+        # for the approach
         dx = state.ball.x_m - robot.x_m
         dy = state.ball.y_m - robot.y_m
-        angle = math.atan2(dy, dx)
+        distance = (dx * dx + dy * dy) ** 0.5
+        target_angle = math.atan2(dy, dx)
+        angle_error = target_angle - robot.heading_rad
+        angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error)) # choosing the smallest error
+        speed_approach = min(2.0, max(0.3, 4.0 * distance))
 
-        return {
-            robot_id: RobotIntent(
-                #vx_mps=0,
-                #vy_mps=1,
-                #angular_velocity_rad_s=3,
+        # for the turning
+        dx_goal = 4.5 - robot.x_m
+        dy_goal = 0 - robot.y_m
+        target_angle_goal = math.atan2(dy_goal, dx_goal)
+        angle_to_goal = target_angle_goal - robot.heading_rad
+        angle_to_goal = math.atan2(math.sin(angle_to_goal), math.cos(angle_to_goal)) # choosing the smallest error
 
-                vx_mps=dx/(abs(dx+dy)) * 2,
-                vy_mps=dy/(abs(dx+dy)) * 2,
-                angular_velocity_rad_s=max(-3, min(3, 5*math.atan2(angle - robot.heading_rad, math.cos(angle - robot.heading_rad)))),
-                kick_speed_mps=5 if robot.infrared else 0,
+        robot_heading_angle_degrees = robot.heading_rad * 180/math.pi
+
+        # for repositioning
+        dx_repos = 3 - robot.x_m
+        dy_repos = 0 - robot.y_m
+        distance_repos = (dx_repos * dx_repos + dy_repos * dy_repos) ** 0.5
+        speed_repos = min(2.0, max(0.3, 4.0 * distance_repos))
+
+        if not robot.infrared:
+            print("approaching")
+            intent = RobotIntent(
+            vx_mps = speed_approach * dx / distance,
+            vy_mps = speed_approach * dy / distance,
+            angular_velocity_rad_s = max(-3, min(3, 4 * angle_error)),
+            dribbler = distance < 0.3
             )
-        }
+        
+        elif distance_repos > 0.2:
+            print("repositioning")
+            intent = RobotIntent(
+            vx_mps = speed_repos * dx_repos / distance_repos,
+            vy_mps = speed_repos * dy_repos / distance_repos,
+            angular_velocity_rad_s = max(-3, min(3, 4 * angle_to_goal)),
+            dribbler = True
+            )
+        elif abs(angle_to_goal) > 0.05 :
+            print("turning")
+            intent = RobotIntent(
+            vx_mps=0,
+            vy_mps=0,
+            angular_velocity_rad_s = max(-3, min(3, 4 * angle_to_goal)),
+            dribbler=True
+            )
+        else:
+            print("kicking")
+            intent = RobotIntent(
+            vx_mps=0,
+            vy_mps=0,
+            angular_velocity_rad_s = 0.0,
+            kick_speed_mps=5,
+            dribbler=False
+            )
+        
+        return {robot_id: intent}
 
     #def observe(self, state: WorldState, config: TeamConfig, striker: RobotState) -> np.ndarray:
 
