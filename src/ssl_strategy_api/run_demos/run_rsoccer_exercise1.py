@@ -13,6 +13,8 @@ from ssl_strategy_api.adapters.rsoccer import (
     world_state_from_rsoccer_frame,
 )
 from ssl_strategy_api.helpers import BallSpawner
+import numpy as np
+from gymnasium import spaces
 
 
 
@@ -52,6 +54,19 @@ class Exercise1Env(SSLBaseEnv):
         )
         self.state = None
         self.ball_spawner = BallSpawner(seed=spawner_seed)
+        self.action_space = spaces.Box(
+            low=np.array([-1.5, -1.5, -3.0], dtype=np.float32),
+            high=np.array([1.5, 1.5, 3.0], dtype=np.float32),
+            dtype=np.float32
+        )
+        
+        # 2. Definiere den Beobachtungsraum (dein 14-dimensionaler State-Vector)
+        self.observation_space = spaces.Box(
+            low=-np.inf, 
+            high=np.inf, 
+            shape=(14,), 
+            dtype=np.float32
+        )
 
     def _get_commands(self, commands):
         return commands
@@ -111,17 +126,17 @@ class Exercise1Env(SSLBaseEnv):
         angular_alignment = 0.0
         # check if the vectors show in the same direction
         dot_product = (rb_x * bg_x) + (rb_y * bg_y)
-        angular_alignment = dot_product / (dist_bg * dist_rb)
+        if dist_bg > 0.0 and dist_rb > 0.0:
+            angular_alignment = dot_product / (dist_bg * dist_rb)
         reward += angular_alignment
 
         if blue_robot.infrared and (-0.1 <= angular_alignment <= 0.1):
-            reward = 100
+            reward += 100
 
         if(respawn_reason == "goal"):
             reward += 500 
             done = True
     
-        print(reward)
         return reward, done
 
     def _get_initial_positions_frame(self):

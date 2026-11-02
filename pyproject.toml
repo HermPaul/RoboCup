@@ -6,8 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "ssl-strategy-api"
 version = "0.1.0"
 description = "Simulator-independent strategy types and adapters for RoboCup SSL students."
-requires-python = ">=3.10"
-dependencies = []
+requires-python = "==3.10.*"
+dependencies = [
+    "rsoccer-gym",
+    "stable-baselines3>=2.9.2",
+    "torch>=2.14.1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+rsoccer-gym = { path = "../rSoccer", editable = true }
