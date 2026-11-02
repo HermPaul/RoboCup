@@ -1,0 +1,25 @@
+
+with rule-based striker that approaches, carries the ball to a good position and aims for an empty goal side
+idle [7, 11, 12, 13, 12] Mean: 11.0
+rule-based [11, 17, 12, 13, 12] Mean: 13.0
+q-table [3, 4, 3, 9, 5] Mean: 4.8
+
+slightly more aimed at the goal's center and more precicely:
+idle [10, 14, 13, 17, 12] Mean: 13.2
+rule-based [12, 15, 16, 15, 13] Mean: 14.2
+q-table [8, 6, 9, 11, 7] Mean: 8.2
+
+changed the shooting direction for an empty goal to it's center:
+idle [19, 17, 20, 19, 18] Mean: 18.6
+rule-based [12, 15, 16, 15, 13] Mean: 14.2
+q-table [8, 6, 8, 11, 7] Mean: 8.0
+
+robot only shoots if it's aligned and not rotating anymore:
+idle [17, 17, 18, 19, 18] Mean: 17.8
+rule-based [16, 17, 17, 16, 17] Mean: 16.6
+q-table [16, 17, 18, 15, 16] Mean: 16.4
+
+now it has to wait to really be steady and calm for 0.125s:
+idle [17, 17, 17, 18, 17] Mean: 17.2
+rule-based [16, 15, 15, 16, 16] Mean: 15.6
+q-table [16, 17, 17, 18, 14] Mean: 16.4
