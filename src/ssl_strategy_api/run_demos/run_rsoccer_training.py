@@ -4,9 +4,7 @@ from importlib import import_module
 from math import ceil
 import os
 import time
-from typing import Any, Dict, Optional, Tuple
-
-import numpy as np
+from typing import Any, Dict, Optional
 
 from rsoccer_gym.Entities import Ball, Frame, Robot
 from rsoccer_gym.ssl.ssl_gym_base import SSLBaseEnv
@@ -17,6 +15,7 @@ from ssl_strategy_api.adapters.rsoccer import (
     world_state_from_rsoccer_frame,
 )
 from ssl_strategy_api.helpers import BallSpawner
+from ssl_strategy_api.run_demos.reward_evaluators.touch_evaluator import TouchEvaluator
 
 SIMULATION_STEP_SECONDS = 0.025
 DEFAULT_EPISODE_DURATION_SECONDS = 5.0
@@ -31,113 +30,13 @@ WEIGHTS_DIR_THIS_RUN = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weight
 DEFAULT_LOG_FILENAME = f"ssl_strategy_api/logs/run_{time.strftime('%Y%m%d_%H%M%S')}"
 LOG_FREQ = 20
 
-
-class BaseRewardEvaluator:
-    """Evaluates per-step dense rewards and finish criteria."""
-
-    def __init__(self):
-        self.prev_angle_err: Optional[float] = None
-        self.prev_distance: Optional[float] = None
-
-    def calculate_reward_and_done(
-            self, env: "TrainingTouchBallEnv"
-    ) -> Tuple[float, bool, Dict[str, Any]]:
-        state = env.state
-        if state is None:
-            return 0.0, False, {"finish_reason": "missing_state", "touched_ball": False}
-
-        striker = state.robots_blue.get(BLUE_ROBOT_ID)
-        ball = state.ball
-
-        if striker is None or ball is None:
-            return 0.0, False, {"finish_reason": "missing_entities", "touched_ball": False}
-
-        # 1. Distance Calculation & Progress
-        dx = ball.x_m - striker.x_m
-        dy = ball.y_m - striker.y_m
-        current_dist = float(np.hypot(dx, dy))
-
-        if self.prev_distance is None:
-            self.prev_distance = current_dist
-
-        distance_closed = self.prev_distance - current_dist
-
-        # 2. Heading Alignment & Angular Progress
-        angle_to_ball = float(np.arctan2(dy, dx) - striker.heading_rad)
-        # Normalize angle to [-pi, pi]
-        angle_to_ball = float(np.arctan2(np.sin(angle_to_ball), np.cos(angle_to_ball)))
-        current_angle_err = abs(angle_to_ball)
-
-        if self.prev_angle_err is None:
-            self.prev_angle_err = current_angle_err
-
-        # Angular progress: positive if robot turned towards ball
-        angle_closed = self.prev_angle_err - current_angle_err
-
-        # Cosine alignment: +1.0 if facing ball directly, -1.0 if facing away
-        alignment_score = float(np.cos(angle_to_ball))
-
-        # 3. Dense Reward Formulation
-        reward = (
-                (distance_closed * 100.0)  # Distance progress
-                + (alignment_score * 0.4) # Step bonus for facing the ball
-                + (angle_closed * 50.0)  # Reward for active turning towards ball
-                - 1  # Step penalty to encourage speed
-        )
-
-        # Environment Terminations
-        ball_touched = bool(striker.infrared)
-        blue_in_opponent_goal_area = env.ball_spawner.in_opponent_goal_area(
-            env.field,
-            striker.x_m,
-            striker.y_m,
-            attack_direction_x=env.blue_config.attack_direction_x,
-        )
-
-        respawn_reason = env.ball_spawner.respawn_when_goal_or_out_or_idle(
-            ball,
-            env.field,
-            attack_direction_x=env.blue_config.attack_direction_x,
-            idle_speed_mps=BALL_IDLE_SPEED_MPS,
-        )
-
-        done = False
-        finish_reason = "in_progress"
-
-        if ball_touched:
-            done = True
-            reward += 1000.0
-            finish_reason = "touched_ball"
-        elif blue_in_opponent_goal_area:
-            done = True
-            reward -= 50.0
-            finish_reason = "goal_area_foul"
-        elif respawn_reason is not None:
-            done = True
-            reward -= 50.0
-            finish_reason = f"out_or_idle_{respawn_reason}"
-
-        if done:
-            self.prev_distance = None
-            self.prev_angle_err = None
-        else:
-            self.prev_distance = current_dist
-            self.prev_angle_err = current_angle_err
-
-        info = {
-            "finish_reason": finish_reason,
-            "touched_ball": ball_touched,
-        }
-        return reward, done, info
-
-
-class TrainingTouchBallEnv(SSLBaseEnv):
+class TrainingEnv(SSLBaseEnv):
     """Headless environment for rapid training sessions."""
 
     def __init__(
         self,
         spawner_seed: Optional[int] = None,
-        evaluator: Optional[BaseRewardEvaluator] = None,
+        evaluator: Optional[TouchEvaluator] = None,
     ):
         self.blue_config = TeamConfig(
             team=TeamColor.BLUE,
@@ -163,7 +62,7 @@ class TrainingTouchBallEnv(SSLBaseEnv):
         )
         self.state = None
         self.ball_spawner = BallSpawner(seed=spawner_seed)
-        self.evaluator = evaluator or BaseRewardEvaluator()
+        self.evaluator = evaluator or TouchEvaluator()
         self.latest_info: Dict[str, Any] = {}
 
     def _get_commands(self, commands):
@@ -248,7 +147,7 @@ def train(
     log_filename: str = DEFAULT_LOG_FILENAME,
     seed: Optional[int] = None,
 ) -> None:
-    env = TrainingTouchBallEnv(spawner_seed=seed)
+    env = TrainingEnv(spawner_seed=seed)
     max_steps_per_episode = ceil(max_duration_seconds / SIMULATION_STEP_SECONDS)
 
     os.makedirs(os.path.dirname(log_filename) or ".", exist_ok=True)
