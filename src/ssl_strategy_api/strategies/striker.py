@@ -1,9 +1,6 @@
 import math
 from typing import Mapping
 
-import numpy as np
-
-from ssl_strategy_api import RobotState
 from ssl_strategy_api.models import RobotIntent, TeamColor, TeamConfig, WorldState
 
 
@@ -44,24 +41,13 @@ class StrikerStrategy:
         if robot is None:
             return {}
 
-        dx = state.ball.x_m - robot.x_m
-        dy = state.ball.y_m - robot.y_m
-        angle = math.atan2(dy, dx)
-
+        # Simple motion example: move the robot in a small random-like direction.
+        # Replace this with your own strategy logic.
+        theta = state.frame_number * 0.1 if state.frame_number is not None else 0.0
         return {
             robot_id: RobotIntent(
-                #vx_mps=0,
-                #vy_mps=1,
-                #angular_velocity_rad_s=3,
-
-                vx_mps=dx/(abs(dx+dy)) * 2,
-                vy_mps=dy/(abs(dx+dy)) * 2,
-                angular_velocity_rad_s=max(-3, min(3, 5*math.atan2(angle - robot.heading_rad, math.cos(angle - robot.heading_rad)))),
-                kick_speed_mps=5 if robot.infrared else 0,
+                vx_mps=0.8 * math.cos(theta),
+                vy_mps=0.8 * math.sin(theta),
+                angular_velocity_rad_s=1.0,
             )
         }
-
-    #def observe(self, state: WorldState, config: TeamConfig, striker: RobotState) -> np.ndarray:
-
-
-
