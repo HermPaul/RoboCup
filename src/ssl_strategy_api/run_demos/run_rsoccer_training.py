@@ -53,7 +53,7 @@ class TrainingEnv(SSLBaseEnv):
             n_robots_blue=1,
             n_robots_yellow=1,
             time_step=SIMULATION_STEP_SECONDS,
-            render_mode="human",
+            render_mode=None
         )
         self.canonical_field = FieldGeometry(
             length_m=self.field.length,
