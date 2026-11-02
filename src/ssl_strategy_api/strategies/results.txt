@@ -23,3 +23,55 @@ now it has to wait to really be steady and calm for 0.125s:
 idle [17, 17, 17, 18, 17] Mean: 17.2
 rule-based [16, 15, 15, 16, 16] Mean: 15.6
 q-table [16, 17, 17, 18, 14] Mean: 16.4
+
+results of larger test with respawn reasons analysed:
+
+idle: 16.8 ± 0.4 Tore 
+    {'goal': 842, 'out-of-bounds': 2, 'robot with ball out': 2, 'idle-in-opponent-goal-area': 2}
+rule-based: 15.7 ± 0.4 Tore 
+    {'goal': 785, 'out-of-bounds': 17, 'missed the goal wide to the left': 5, 'missed the goal wide to the right': 8, 'robot with ball out': 3, 'idle-in-opponent-goal-area': 7, 'other out': 1}
+q-table: 16.4 ± 0.4 Tore 
+    {'goal': 822, 'out-of-bounds': 10, 'robot with ball out': 3, 'missed the goal wide to the left': 2, 'idle-in-opponent-goal-area': 6, 'missed the goal wide to the right': 5}
+
+checking how long each of the strategy-phases (approaching, carrying, turning, shooting) takes:
+idle: 17.2 ± 0.2 Tore {'goal': 86}
+ relative: APPROACH 43%, CARRY 33%, TURNING 23%, SHOOTING 0%
+ absolute: APPROACH 7756, CARRY 5947, TURNING 4210, SHOOTING 87
+rule-based: 15.8 ± 0.6 Tore {'goal': 79, 'out-of-bounds': 4, 'missed the goal wide to the left': 3, 'missed the goal wide to the right': 1}
+ relative: APPROACH 44%, CARRY 33%, TURNING 23%, SHOOTING 0%
+ absolute: APPROACH 7893, CARRY 5943, TURNING 4075, SHOOTING 89
+q-table: 16.2 ± 0.4 Tore {'goal': 81, 'idle-in-opponent-goal-area': 2, 'out-of-bounds': 3, 'robot with ball out': 1, 'missed the goal wide to the left': 1, 'missed the goal wide to the right': 1}
+ relative: APPROACH 45%, CARRY 33%, TURNING 22%, SHOOTING 0%
+ absolute: APPROACH 8015, CARRY 5867, TURNING 4031, SHOOTING 87
+
+
+
+halfed the brake-distance of the robot when approaching to check if that gives a time advantage:
+
+idle: 16.5 ± 0.1 Tore {
+    'goal':                                 823, 
+    'out-of-bounds':                        41, 
+    'robot with ball out':                  41, 
+    'idle-in-opponent-goal-area':           2}
+ APPROACH 41%, CARRY 36%, TURNING 22%, SHOOTING 0%
+ APPROACH 74672, CARRY 65299, TURNING 39206, SHOOTING 823
+
+rule-based: 15.5 ± 0.1 Tore {
+    'goal':                                 774, 
+    'out-of-bounds':                        54, 
+    'robot with ball out':                  43, 
+    'missed the goal wide to the right':    9, 
+    'idle-in-opponent-goal-area':           5, 
+    'missed the goal wide to the left':     2}
+ APPROACH 41%, CARRY 36%, TURNING 22%, SHOOTING 0%
+ APPROACH 74588, CARRY 64200, TURNING 40396, SHOOTING 816
+
+q-table: 15.7 ± 0.2 Tore {
+    'goal':                                 783, 
+    'idle-in-opponent-goal-area':           6, 
+    'out-of-bounds':                        48, 
+    'robot with ball out':                  42, 
+    'missed the goal wide to the right':    1, 
+    'missed the goal wide to the left':     5}
+ APPROACH 41%, CARRY 37%, TURNING 21%, SHOOTING 0%
+ APPROACH 74346, CARRY 66242, TURNING 38594, SHOOTING 818

@@ -1,6 +1,6 @@
 import math
 from typing import Mapping
-
+from collections import Counter
 import numpy as np
 
 from ssl_strategy_api import RobotState
@@ -18,10 +18,12 @@ class StrikerStrategy:
 
     def __init__(self, debug = True):
         self.debug = debug
+        self.phase_steps = Counter()
         self.reset()
 
     def reset(self, seed=None) -> None:
         self.phase = "APPROACH"
+        self.phase_steps
         self.log(self.phase)
         self.aim_y = 0.0 # default aim y-coordinate is the goal's center
         self.steady_steps = 0
@@ -49,6 +51,8 @@ class StrikerStrategy:
         if config.team != TeamColor.BLUE:
             return {}
 
+        self.phase_steps[self.phase] += 1
+
         robot_id = config.controlled_robot_ids[0]
         robots = state.robots_blue
         robot = robots.get(robot_id)
@@ -63,7 +67,7 @@ class StrikerStrategy:
             target_angle = math.atan2(dy, dx)
             angle_error = target_angle - robot.heading_rad
             angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error)) # choosing the smallest error
-            speed_approach = min(2.0, max(0.3, 4.0 * distance))
+            speed_approach = min(2.0, max(0.3, 8.0 * distance))
 
             intent = RobotIntent(
             vx_mps = speed_approach * dx / distance,
@@ -134,7 +138,7 @@ class StrikerStrategy:
             else:
                 self.steady_steps = 0
 
-            if self.steady_steps >= 5:      # 5 × 25 ms = 0,125s steady
+            if self.steady_steps >= 3:      # 5 × 25 ms = 0,125s steady
                 self.phase = "SHOOTING"
                 self.log(self.phase)
                 
@@ -149,7 +153,6 @@ class StrikerStrategy:
             angular_velocity_rad_s = 0.0,
             kick_speed_mps=5,
             dribbler=False)
-
             self.reset()
 
         return {robot_id: intent}

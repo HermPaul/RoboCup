@@ -112,13 +112,6 @@ class BallSpawner:
         if not enforce_outside_opponent_goal_area:
             y_m = self._random.uniform(y_min, y_max)
             return BallSpawn(x_m=x_m, y_m=y_m, vx_mps=0.0, vy_mps=0.0)
-        
-        """ 
-        # JUST TO TEST REPOSITIONING
-        x_m = 4
-        if not enforce_outside_opponent_goal_area:
-            y_m = 2.5
-            return BallSpawn(x_m=x_m, y_m=y_m, vx_mps=0.0, vy_mps=0.0) """
 
         if not self.in_opponent_goal_area(field, x_m, 0.0, attack_direction_x):
             y_m = self._random.uniform(y_min, y_max)
