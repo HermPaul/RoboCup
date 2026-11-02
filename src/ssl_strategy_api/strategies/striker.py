@@ -1,3 +1,4 @@
+import os
 from typing import Mapping, Optional
 import numpy as np
 import torch
@@ -11,7 +12,7 @@ from ssl_strategy_api.models import RobotIntent, TeamColor, TeamConfig, WorldSta
 
 class StrikerStrategy:
 
-    def __init__(self):
+    def __init__(self, checkpoint_path: Optional[str] = None):
         self.log_probs = []
         self.values = []
         self.rewards = []  # Stores per-step rewards
@@ -21,6 +22,9 @@ class StrikerStrategy:
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3)
+
+        if checkpoint_path:
+            self.load_checkpoint(checkpoint_path)
 
     def reset(self, seed=None) -> None:
         self.log_probs.clear()
@@ -80,41 +84,21 @@ class StrikerStrategy:
 
         self.reset()
 
-    def observe(self, state: WorldState, config: TeamConfig) -> Optional[Tensor]:
-        """Converts world state into relative coordinates for translation invariance."""
+    def observe(self, state: WorldState, config: TeamConfig) -> Tensor | None:
+        """
+            converts the world state to a 12-dimensional array used as input to the actor-critic network
+        """
+
         striker = state.robots_blue.get(config.controlled_robot_ids[0])
         goalkeeper = state.robots_yellow.get(0)
         ball = state.ball
-
         if striker is None or goalkeeper is None or ball is None:
             return None
 
-        # Relative vector to ball
-        dx_ball = ball.x_m - striker.x_m
-        dy_ball = ball.y_m - striker.y_m
-        dist_ball = float(np.hypot(dx_ball, dy_ball))
-
-        # Angle to ball relative to robot heading in [-pi, pi]
-        angle_to_ball = float(np.arctan2(dy_ball, dx_ball) - striker.heading_rad)
-        angle_to_ball = float(np.arctan2(np.sin(angle_to_ball), np.cos(angle_to_ball)))
-
-        # Relative vector to goalkeeper
-        dx_gk = goalkeeper.x_m - striker.x_m
-        dy_gk = goalkeeper.y_m - striker.y_m
-
         return torch.tensor([
-            dx_ball,
-            dy_ball,
-            dist_ball,
-            angle_to_ball,
-            striker.heading_rad,
-            float(striker.infrared or 0),
-            dx_gk,
-            dy_gk,
-            goalkeeper.heading_rad,
-            ball.vx_mps,
-            ball.vy_mps,
-            float(np.hypot(ball.vx_mps, ball.vy_mps)),
+            striker.x_m, striker.y_m, striker.heading_rad, float(striker.infrared or 0),
+            goalkeeper.x_m, goalkeeper.y_m, goalkeeper.heading_rad, float(goalkeeper.infrared or 0),
+            ball.x_m, ball.y_m, ball.vx_mps, ball.vy_mps
         ], dtype=torch.float32).unsqueeze(0)
 
     def create_intents(self, action_t: torch.Tensor, robot_id: int) -> Mapping[int, RobotIntent]:
@@ -155,6 +139,49 @@ class StrikerStrategy:
 
         return returns, advantages
 
+    def save_checkpoint(
+            self,
+            filepath: str,
+            episode: int,
+            metrics: dict = None
+    ) -> None:
+        """Saves models, optimizers, and training metadata to a single file."""
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        checkpoint = {
+            "role": "striker",
+            "episode": episode,
+            "actor_state_dict": self.actor.state_dict(),
+            "critic_state_dict": self.critic.state_dict(),
+            "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
+            "critic_optimizer_state_dict": self.critic_optimizer.state_dict(),
+            "metrics": metrics or {},
+        }
+        torch.save(checkpoint, filepath)
+
+    def load_checkpoint(self, filepath: str, eval_mode: bool = False) -> int:
+        """Loads weights and optimizer states. Returns the episode number."""
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"No checkpoint found at '{filepath}'")
+
+        checkpoint = torch.load(filepath, map_location="cpu")
+
+        self.actor.load_state_dict(checkpoint["actor_state_dict"])
+        self.critic.load_state_dict(checkpoint["critic_state_dict"])
+
+        if "actor_optimizer_state_dict" in checkpoint:
+            self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
+        if "critic_optimizer_state_dict" in checkpoint:
+            self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
+
+        if eval_mode:
+            self.actor.eval()
+            self.critic.eval()
+        else:
+            self.actor.train()
+            self.critic.train()
+
+        return checkpoint.get("episode", 0)
 
 class Actor(nn.Module):
     def __init__(self, state_dim=12, action_dim=5):

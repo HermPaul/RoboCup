@@ -6,6 +6,8 @@ import os
 import time
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
+
 from rsoccer_gym.Entities import Ball, Frame, Robot
 from rsoccer_gym.ssl.ssl_gym_base import SSLBaseEnv
 
@@ -23,37 +25,74 @@ YELLOW_ROBOT_ID = 0
 RIGHT_SIDE_MARGIN_M = 0.20
 BALL_IDLE_SPEED_MPS = 0.06
 DEFAULT_NUM_EPISODES = 10000
+SAVE_FREQ = 500
+WEIGHTS_DIR = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weights/striker/"
+WEIGHTS_DIR_THIS_RUN = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weights/striker/run_{time.strftime('%Y%m%d_%H%M%S')}/"
+DEFAULT_LOG_FILENAME = f"ssl_strategy_api/logs/run_{time.strftime('%Y%m%d_%H%M%S')}"
+LOG_FREQ = 20
 
 
 class BaseRewardEvaluator:
     """Evaluates per-step dense rewards and finish criteria."""
 
     def __init__(self):
+        self.prev_angle_err: Optional[float] = None
         self.prev_distance: Optional[float] = None
 
     def calculate_reward_and_done(
-        self, env: "TrainingTouchBallEnv"
+            self, env: "TrainingTouchBallEnv"
     ) -> Tuple[float, bool, Dict[str, Any]]:
         state = env.state
-        frame = env.frame
-        ball = state.ball if state is not None else None
-        blue_robot = frame.robots_blue.get(BLUE_ROBOT_ID) if frame else None
+        if state is None:
+            return 0.0, False, {"finish_reason": "missing_state", "touched_ball": False}
 
-        if blue_robot is None or frame.ball is None:
+        striker = state.robots_blue.get(BLUE_ROBOT_ID)
+        ball = state.ball
+
+        if striker is None or ball is None:
             return 0.0, False, {"finish_reason": "missing_entities", "touched_ball": False}
 
-        current_dist = float(
-            ((blue_robot.x - frame.ball.x) ** 2 + (blue_robot.y - frame.ball.y) ** 2) ** 0.5
-        )
+        # 1. Distance Calculation & Progress
+        dx = ball.x_m - striker.x_m
+        dy = ball.y_m - striker.y_m
+        current_dist = float(np.hypot(dx, dy))
 
         if self.prev_distance is None:
             self.prev_distance = current_dist
 
-        # Distance closed in meters (positive if moving closer)
         distance_closed = self.prev_distance - current_dist
 
-        # Dense Reward: 100x distance progress minus small step penalty
-        reward = (distance_closed * 100.0) - 0.01
+        # 2. Heading Alignment & Angular Progress
+        angle_to_ball = float(np.arctan2(dy, dx) - striker.heading_rad)
+        # Normalize angle to [-pi, pi]
+        angle_to_ball = float(np.arctan2(np.sin(angle_to_ball), np.cos(angle_to_ball)))
+        current_angle_err = abs(angle_to_ball)
+
+        if self.prev_angle_err is None:
+            self.prev_angle_err = current_angle_err
+
+        # Angular progress: positive if robot turned towards ball
+        angle_closed = self.prev_angle_err - current_angle_err
+
+        # Cosine alignment: +1.0 if facing ball directly, -1.0 if facing away
+        alignment_score = float(np.cos(angle_to_ball))
+
+        # 3. Dense Reward Formulation
+        reward = (
+                (distance_closed * 100.0)  # Distance progress
+                + (alignment_score * 0.4) # Step bonus for facing the ball
+                + (angle_closed * 50.0)  # Reward for active turning towards ball
+                - 1  # Step penalty to encourage speed
+        )
+
+        # Environment Terminations
+        ball_touched = bool(striker.infrared)
+        blue_in_opponent_goal_area = env.ball_spawner.in_opponent_goal_area(
+            env.field,
+            striker.x_m,
+            striker.y_m,
+            attack_direction_x=env.blue_config.attack_direction_x,
+        )
 
         respawn_reason = env.ball_spawner.respawn_when_goal_or_out_or_idle(
             ball,
@@ -62,21 +101,12 @@ class BaseRewardEvaluator:
             idle_speed_mps=BALL_IDLE_SPEED_MPS,
         )
 
-        blue_in_opponent_goal_area = env.ball_spawner.in_opponent_goal_area(
-            env.field,
-            blue_robot.x,
-            blue_robot.y,
-            attack_direction_x=env.blue_config.attack_direction_x,
-        )
-
-        ball_touched = bool(blue_robot.infrared)
-
         done = False
         finish_reason = "in_progress"
 
         if ball_touched:
             done = True
-            reward += 500.0
+            reward += 1000.0
             finish_reason = "touched_ball"
         elif blue_in_opponent_goal_area:
             done = True
@@ -84,10 +114,15 @@ class BaseRewardEvaluator:
             finish_reason = "goal_area_foul"
         elif respawn_reason is not None:
             done = True
-            reward -= 20.0
+            reward -= 50.0
             finish_reason = f"out_or_idle_{respawn_reason}"
 
-        self.prev_distance = current_dist if not done else None
+        if done:
+            self.prev_distance = None
+            self.prev_angle_err = None
+        else:
+            self.prev_distance = current_dist
+            self.prev_angle_err = current_angle_err
 
         info = {
             "finish_reason": finish_reason,
@@ -119,7 +154,7 @@ class TrainingTouchBallEnv(SSLBaseEnv):
             n_robots_blue=1,
             n_robots_yellow=1,
             time_step=SIMULATION_STEP_SECONDS,
-            render_mode=None,
+            render_mode="human",
         )
         self.canonical_field = FieldGeometry(
             length_m=self.field.length,
@@ -189,12 +224,20 @@ class TrainingTouchBallEnv(SSLBaseEnv):
         return frame
 
 
-def _load_strategy(path: str) -> Any:
+def _load_strategy(path: str, checkpoint_path: Optional[str] = None) -> Any:
     module_name, separator, class_name = path.partition(":")
     if not separator:
         raise ValueError("strategy must use module.path:ClassName format")
     strategy_class = getattr(import_module(module_name), class_name)
-    return strategy_class()
+
+    # Try passing checkpoint_path to __init__; fall back to load_checkpoint if __init__ doesn't accept it
+    try:
+        return strategy_class(checkpoint_path=checkpoint_path)
+    except TypeError:
+        strategy = strategy_class()
+        if checkpoint_path and hasattr(strategy, "load_checkpoint"):
+            strategy.load_checkpoint(checkpoint_path)
+        return strategy
 
 
 def train(
@@ -202,8 +245,7 @@ def train(
     yellow_strategy: Any,
     num_episodes: int,
     max_duration_seconds: float = DEFAULT_EPISODE_DURATION_SECONDS,
-    log_filename: str = "training_stats.csv",
-    log_freq: int = 1,
+    log_filename: str = DEFAULT_LOG_FILENAME,
     seed: Optional[int] = None,
 ) -> None:
     env = TrainingTouchBallEnv(spawner_seed=seed)
@@ -273,7 +315,7 @@ def train(
 
             duration_s = round(episode_steps * SIMULATION_STEP_SECONDS, 3)
 
-            if episode % log_freq == 0 or episode == num_episodes:
+            if episode % LOG_FREQ == 0 or episode == num_episodes:
                 csv_writer.writerow([
                     episode,
                     round(total_reward, 4),
@@ -284,13 +326,17 @@ def train(
                 ])
                 log_file.flush()
 
-            if episode % 50 == 0 or episode == num_episodes:
+            if episode % 100 == 0 or episode == num_episodes:
                 elapsed = time.time() - start_time
                 print(
                     f"Ep {episode}/{num_episodes} | Return: {total_reward:.3f} | "
                     f"Steps: {episode_steps} ({duration_s}s) | Reason: {finish_reason} | "
                     f"Elapsed: {elapsed:.1f}s"
                 )
+
+            if episode % SAVE_FREQ == 0:
+                blue_strategy.save_checkpoint(f"{WEIGHTS_DIR_THIS_RUN}/episode_{episode:06d}.pt", episode)
+                blue_strategy.save_checkpoint(f"{WEIGHTS_DIR}/latest.pt", episode)
 
     finally:
         log_file.close()
@@ -318,7 +364,7 @@ def main() -> int:
     parser.add_argument(
         "--log-filename",
         type=str,
-        default="training_stats.csv",
+        default=DEFAULT_LOG_FILENAME,
         help="Path to CSV log file for plotting (default: training_stats.csv)",
     )
     parser.add_argument(
@@ -332,9 +378,16 @@ def main() -> int:
         help="Yellow strategy class as module.path:ClassName",
     )
 
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default=None,
+        help="Path to pre-trained blue strategy weights .pt file",
+    )
+
     args = parser.parse_args()
 
-    blue_strategy = _load_strategy(args.blue_strategy)
+    blue_strategy = _load_strategy(args.blue_strategy, checkpoint_path=args.weights)
     yellow_strategy = _load_strategy(args.yellow_strategy)
 
     train(
