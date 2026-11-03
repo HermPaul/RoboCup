@@ -21,6 +21,7 @@ class TouchAndShootEvaluator:
         self.prev_distance: Optional[float] = None
         self.ball_already_touched: bool = False
         self.prev_goal_angular_size: Optional[float] = None
+        self.prev_d_ball: Optional[float] = None
 
     def calculate_reward_and_done(
             self, env: "TrainingEnv"
@@ -66,16 +67,24 @@ class TouchAndShootEvaluator:
             done = True
             reward -= 50.0
             finish_reason = "goal_area_foul"
+        elif respawn_reason == "goal" and self.prev_d_ball < GOAL_X:
+            print("GOOOOAAAAAALLLLLLL")
+            done = True
+            reward += 5000.0
         elif respawn_reason is not None:
             done = True
             reward -= 50.0
             finish_reason = f"out_or_idle_{respawn_reason}"
+        elif env.steps >= env.max_steps:
+            done = True
+            finish_reason = "max duration reached"
 
         if done:
             self.prev_distance = None
             self.prev_angle_err = None
             self.ball_already_touched = False
             self.prev_goal_angular_size = None
+            self.prev_d_ball = None
 
         info = {
             "finish_reason": finish_reason,
@@ -123,30 +132,49 @@ class TouchAndShootEvaluator:
         return reward
 
     def calculate_reward_after_touching(self, ball, striker):
-        reward = 0.0
-        if not striker.infrared:
-            speed = (ball.vx_mps ** 2 * ball.vy_mps ** 2) ** 0.5
-            if ball.vx_mps > 0:
-                t = (GOAL_X - ball.x_m) / ball.vx_mps
-                y_offset = min(0, (abs(ball.y_m + ball.vy_mps * t) - (0.5 * GOAL_SIZE)))
-                if y_offset == 0:
-                    reward = speed * 4 # ball will go in
-                else:
-                    reward = speed * (20 - y_offset * 2) # ball will not go in
-            else:
-                reward = 2.5 * ball.vx_mps # ball shot in wrong dir
+        """Calculates dense rewards after initial ball contact to incentivize control,
 
+            alignment, and shooting toward the target goal.
+        """
+        # 1. Distance & Velocity Metrics
+        ball_pos = (ball.x_m, ball.y_m)
+        d_ball_goal = math.hypot(GOAL_X - ball.x_m, GOAL_Y - ball.y_m)
+
+        # Ball movement progress toward goal
+        ball_progress = 0
+        if self.prev_d_ball is None:
+            self.prev_d_ball = d_ball_goal
         else:
-            # look for optimal shooting angle
-            angle_left = math.atan2(-0.5 * GOAL_SIZE - ball.y_m, GOAL_X - ball.x_m)
-            angle_right = math.atan2(0.5 * GOAL_SIZE - ball.y_m, GOAL_X - ball.x_m)
+            ball_progress = self.prev_d_ball - d_ball_goal
 
-            goal_angular_size = math.atan2(math.sin(angle_right - angle_left), math.cos(angle_right - angle_left))
+        # 2. Robot-to-Ball Proximity / Control
+        d_robot_ball = math.hypot(ball_pos[0] - striker.x_m, ball_pos[1] - striker.y_m)
+        has_possession = bool(getattr(striker, "infrared", False)) or (d_robot_ball <= 0.12)
 
-            if self.prev_goal_angular_size is not None:
-                reward = (goal_angular_size - self.prev_goal_angular_size) * 25 # goal angular size increased
-            self.prev_goal_angular_size = goal_angular_size
+        # 3. Heading Alignment (Striker facing target goal)
+        dx_goal = GOAL_X - striker.x_m
+        dy_goal = GOAL_Y - striker.y_m
+        angle_to_goal = math.atan2(dy_goal, dx_goal) - striker.heading_rad
+        angle_to_goal = math.atan2(math.sin(angle_to_goal), math.cos(angle_to_goal))
+        goal_facing_score = math.cos(angle_to_goal)
 
-        reward -= 1 # step penalty
+        # 4. Ball Velocity Component Directed Toward Goal Center
+        v_bg = (GOAL_X - ball.x_m, GOAL_Y - ball.y_m)
+        mag_bg = math.hypot(*v_bg) + 1e-6
+        unit_v_bg = (v_bg[0] / mag_bg, v_bg[1] / mag_bg)
+
+        # Projection of ball velocity vector onto goal vector
+        v_ball_toward_goal = ball.vx_mps * unit_v_bg[0] + ball.vy_mps * unit_v_bg[1]
+
+        # 5. Reward Formulation
+        reward = (
+                (ball_progress * 250.0)  # Dense progress reward
+                + (v_ball_toward_goal * 15.0)  # Active ball velocity toward goal
+                + (0.5 if has_possession else -1.0)  # Possession bonus / separation penalty
+                + (goal_facing_score * 0.3)  # Goal-alignment encouragement
+                - 0.02  # Step penalty for execution speed
+        )
+
+        self.prev_d_ball = d_ball_goal
 
         return reward
