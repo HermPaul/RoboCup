@@ -20,6 +20,7 @@ class StrikerStrategy:
         self.debug = debug
         self.phase_steps = Counter()
         self.reset()
+        self.goalie = True
 
     def reset(self, seed=None) -> None:
         self.phase = "APPROACH"
@@ -56,9 +57,13 @@ class StrikerStrategy:
         robot_id = config.controlled_robot_ids[0]
         robots = state.robots_blue
         robot = robots.get(robot_id)
+
         if robot is None:
             return {}
+
         goalie = state.robots_yellow[0]
+        if goalie.y_m < -2.5 and sum(self.phase_steps.values()) > 10: # check if the goalie is still in the corner after 10 steps
+            self.goalie = False
 
         if self.phase == "APPROACH":
             dx = state.ball.x_m - robot.x_m
@@ -67,7 +72,7 @@ class StrikerStrategy:
             target_angle = math.atan2(dy, dx)
             angle_error = target_angle - robot.heading_rad
             angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error)) # choosing the smallest error
-            speed_approach = min(2.0, max(0.3, 8.0 * distance))
+            speed_approach = min(2.0, max(0.3, 4.0 * distance))
 
             intent = RobotIntent(
             vx_mps = speed_approach * dx / distance,
@@ -76,8 +81,12 @@ class StrikerStrategy:
             dribbler = distance < 0.3)
 
             if robot.infrared:
-                self.log(self.phase)
-                self.phase = "CARRY"
+                if 1 < state.ball.x_m < 3.8 and -2.5 < state.ball.y_m < 2.5 and goalie == False:
+                    self.phase = "TURNING"
+                    self.log("self.phase")
+                else:
+                    self.phase = "CARRY"
+                    self.log(self.phase)
 
 
         elif self.phase == "CARRY":
@@ -105,10 +114,10 @@ class StrikerStrategy:
                     self.log("shooting direction: center")
                 elif y_goalie < 0:
                     self.aim_y = 0.35
-                    #self.log("shooting direction: left")
+                    self.log("shooting direction: right") # left and right are switched because the field is mirrored
                 else:
                     self.aim_y = -0.35
-                    #self.log("shooting direction: right")
+                    self.log("shooting direction: left") # left and right are switched because the field is mirrored
             if not robot.infrared: 
                 self.phase = "APPROACH"
                 self.log(self.phase)
@@ -124,12 +133,10 @@ class StrikerStrategy:
             speed = math.hypot(robot.vx_mps or 0.0, robot.vy_mps or 0.0)
             turning = abs(robot.angular_velocity_rad_s or 0.0)
 
-            aligned = abs(angle_to_goal) < 0.05
-            calm = speed < 0.05 and turning < 0.1
+            aligned = abs(angle_to_goal) < 0.075
+            calm = speed < 0.075 and turning < 0.15
 
             intent = RobotIntent(
-            vx_mps=0,
-            vy_mps=0,
             angular_velocity_rad_s = max(-3, min(3, 4 * angle_to_goal)),
             dribbler=True)
 
@@ -138,7 +145,7 @@ class StrikerStrategy:
             else:
                 self.steady_steps = 0
 
-            if self.steady_steps >= 3:      # 5 × 25 ms = 0,125s steady
+            if self.steady_steps >= 2:      # 2 × 25 ms = 0,05s steady
                 self.phase = "SHOOTING"
                 self.log(self.phase)
                 

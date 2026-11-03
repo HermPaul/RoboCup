@@ -75,3 +75,49 @@ q-table: 15.7 ± 0.2 Tore {
     'missed the goal wide to the left':     5}
  APPROACH 41%, CARRY 37%, TURNING 21%, SHOOTING 0%
  APPROACH 74346, CARRY 66242, TURNING 38594, SHOOTING 818
+
+changed the brake-distance back to 0.5m and added direct shot if ball spawned in good position:
+
+idle: 17.5 ± 0.4 Tore {'goal': 876, 'out-of-bounds': 19, 'robot with ball out': 19, 'idle-in-opponent-goal-area': 9}
+ APPROACH 50%, TURNING 28%, CARRY 21%, SHOOTING 0%
+ APPROACH 89533, TURNING 51229, CARRY 38354, SHOOTING 884
+
+rule-based: 8.7 ± 0.4 Tore {'goal': 435, 'idle-in-opponent-goal-area': 252, 'out-of-bounds': 20, 'missed the goal wide to the left': 3, 'robot with ball out': 12, 'missed the goal wide to the right': 4, 'other out': 1}
+ APPROACH 51%, TURNING 27%, CARRY 21%, SHOOTING 0%
+ APPROACH 92446, TURNING 49035, CARRY 37652, SHOOTING 867
+
+q-table: 7.4 ± 0.5 Tore {'idle-in-opponent-goal-area': 343, 'goal': 368, 'out-of-bounds': 17, 'other out': 1, 'missed the goal wide to the left': 3, 'robot with ball out': 13}
+ APPROACH 53%, TURNING 26%, CARRY 20%, SHOOTING 0%
+ APPROACH 95149, TURNING 47668, CARRY 36369, SHOOTING 814
+
+-> got better with no goalie, but worse with one
+
+
+implement a goalie check and just shoot direct if goalie is inactive:
+idle: 17.0 ± 0.4 Tore {'goal': 852, 'out-of-bounds': 4, 'missed the goal wide to the right': 3, 'robot with ball out': 1}
+ APPROACH 43%, CARRY 34%, TURNING 22%, SHOOTING 0%
+ APPROACH 77758, CARRY 61228, TURNING 40158, SHOOTING 856
+
+rule-based: 15.9 ± 0.4 Tore {'goal': 795, 'out-of-bounds': 13, 'missed the goal wide to the left': 6, 'missed the goal wide to the right': 6, 'idle-in-opponent-goal-area': 5, 'robot with ball out': 1}
+ APPROACH 43%, CARRY 34%, TURNING 23%, SHOOTING 0%
+ APPROACH 77798, CARRY 60461, TURNING 40890, SHOOTING 851
+
+q-table: 16.3 ± 0.4 Tore {'goal': 816, 'idle-in-opponent-goal-area': 12, 'out-of-bounds': 8, 'robot with ball out': 2, 'missed the goal wide to the left': 3, 'missed the goal wide to the right': 3}
+ APPROACH 43%, CARRY 35%, TURNING 21%, SHOOTING 0%
+ APPROACH 78248, CARRY 62585, TURNING 38315, SHOOTING 852
+
+
+lowered the steady & calm requirements for a shot:
+idle: 17.5 ± 0.4 Tore {'goal': 876, 'out-of-bounds': 2, 'missed the goal wide to the left': 1, 'idle-in-opponent-goal-area': 4, 'robot with ball out': 1}
+ APPROACH 45%, CARRY 35%, TURNING 20%, SHOOTING 0%
+ APPROACH 80236, CARRY 62712, TURNING 36174, SHOOTING 878
+
+rule-based: 16.5 ± 0.4 Tore {'goal': 826, 'out-of-bounds': 16, 'missed the goal wide to the right': 11, 'idle-in-opponent-goal-area': 4, 'missed the goal wide to the left': 4, 'robot with ball out': 1}
+ APPROACH 45%, CARRY 34%, TURNING 21%, SHOOTING 0%
+ APPROACH 80348, CARRY 61698, TURNING 37085, SHOOTING 869
+
+q-table: 16.5 ± 0.4 Tore {'goal': 823, 'out-of-bounds': 19, 'missed the goal wide to the left': 11, 'idle-in-opponent-goal-area': 16, 'missed the goal wide to the right': 4, 'other out': 1, 'robot with ball out': 3}
+ APPROACH 45%, CARRY 35%, TURNING 20%, SHOOTING 0%
+ APPROACH 81397, CARRY 62520, TURNING 35201, SHOOTING 882
+
+-> improved a little bit
