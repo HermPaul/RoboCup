@@ -121,3 +121,45 @@ q-table: 16.5 ± 0.4 Tore {'goal': 823, 'out-of-bounds': 19, 'missed the goal wi
  APPROACH 81397, CARRY 62520, TURNING 35201, SHOOTING 882
 
 -> improved a little bit
+
+
+tested higher turning speeds in the carry-phase and the turning-phase:
+idle: 18.8 ± 0.5 Tore {'goal': 941, 'idle-in-opponent-goal-area': 7, 'out-of-bounds': 15, 'robot with ball out': 13, 'other out': 2}
+ APPROACH 53%, CARRY 24%, TURNING 23%, SHOOTING 1%
+ APPROACH 95302, CARRY 42905, TURNING 40845, SHOOTING 948
+
+rule-based: 16.8 ± 0.5 Tore {'goal': 842, 'out-of-bounds': 10, 'missed the goal wide to the left': 3, 'idle-in-opponent-goal-area': 9, 'missed the goal wide to the right': 5, 'robot with ball out': 2}
+ APPROACH 47%, CARRY 36%, TURNING 16%, SHOOTING 0%
+ APPROACH 84584, CARRY 65252, TURNING 29280, SHOOTING 884
+
+q-table: 17.1 ± 0.4 Tore {'goal': 856, 'out-of-bounds': 25, 'missed the goal wide to the right': 9, 'idle-in-opponent-goal-area': 9, 'robot with ball out': 3, 'missed the goal wide to the left': 12, 'other out': 1}
+ APPROACH 47%, CARRY 36%, TURNING 16%, SHOOTING 1%
+ APPROACH 84673, CARRY 64816, TURNING 29592, SHOOTING 919
+
+
+implemented an early shot rule so that the robo can shoot if it has a good position while carrying the ball to the normal shooting position:
+idle: 19.6 ± 0.4 Tore {'goal': 980, 'out-of-bounds': 40, 'missed the goal wide to the left': 3, 'robot with ball out': 28, 'idle-in-opponent-goal-area': 13, 'missed the goal wide to the right': 8, 'other out': 1}
+ APPROACH 62%, TURNING 27%, CARRY 11%, SHOOTING 1%, EARLY SHOT 0%
+ APPROACH 110829, TURNING 49156, CARRY 19036, SHOOTING 979, EARLY SHOT 28
+
+rule-based: 15.8 ± 0.4 Tore {'goal': 791, 'out-of-bounds': 35, 'missed the goal wide to the left': 12, 'idle-in-opponent-goal-area': 36, 'missed the goal wide to the right': 21, 'robot with ball out': 2}
+ APPROACH 48%, CARRY 36%, TURNING 15%, SHOOTING 0%, EARLY SHOT 0%
+ APPROACH 87104, CARRY 65431, TURNING 26669, SHOOTING 796, EARLY SHOT 149
+
+q-table: 16.5 ± 0.4 Tore {'goal': 823, 'out-of-bounds': 49, 'missed the goal wide to the right': 25, 'missed the goal wide to the left': 19, 'idle-in-opponent-goal-area': 18, 'robot with ball out': 5}
+ APPROACH 49%, CARRY 36%, TURNING 15%, SHOOTING 0%, EARLY SHOT 0%
+ APPROACH 88274, CARRY 64525, TURNING 26391, SHOOTING 810, EARLY SHOT 135
+
+
+deactivated the early shot, altered the trigger when turning begins to 0.4m before the shooting position
+idle: 19.9 ± 0.4 Tore {'goal': 997, 'idle-in-opponent-goal-area': 12, 'out-of-bounds': 26, 'robot with ball out': 25, 'other out': 1}
+ APPROACH 61%, TURNING 28%, CARRY 10%, SHOOTING 1%
+ APPROACH 109386, TURNING 51122, CARRY 18486, SHOOTING 1006
+
+rule-based: 16.9 ± 0.5 Tore {'goal': 845, 'out-of-bounds': 17, 'missed the goal wide to the right': 12, 'idle-in-opponent-goal-area': 6, 'missed the goal wide to the left': 4, 'robot with ball out': 1}
+ APPROACH 46%, CARRY 34%, TURNING 19%, SHOOTING 0%
+ APPROACH 82604, CARRY 61906, TURNING 34594, SHOOTING 896
+
+q-table: 17.1 ± 0.5 Tore {'goal': 857, 'out-of-bounds': 12, 'missed the goal wide to the right': 4, 'idle-in-opponent-goal-area': 7, 'missed the goal wide to the left': 7, 'robot with ball out': 1}
+ APPROACH 47%, CARRY 33%, TURNING 19%, SHOOTING 1%
+ APPROACH 85323, CARRY 59495, TURNING 34274, SHOOTING 908
