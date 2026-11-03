@@ -15,10 +15,11 @@ from ssl_strategy_api.adapters.rsoccer import (
     world_state_from_rsoccer_frame,
 )
 from ssl_strategy_api.helpers import BallSpawner
+from ssl_strategy_api.run_demos.reward_evaluators.touch_and_shoot_evaluator import TouchAndShootEvaluator
 from ssl_strategy_api.run_demos.reward_evaluators.touch_evaluator import TouchEvaluator
 
 SIMULATION_STEP_SECONDS = 0.025
-DEFAULT_EPISODE_DURATION_SECONDS = 5.0
+DEFAULT_EPISODE_DURATION_SECONDS = 6.0
 BLUE_ROBOT_ID = 0
 YELLOW_ROBOT_ID = 0
 RIGHT_SIDE_MARGIN_M = 0.20
@@ -143,11 +144,12 @@ def train(
     blue_strategy: Any,
     yellow_strategy: Any,
     num_episodes: int,
+    evaluator: Any,
     max_duration_seconds: float = DEFAULT_EPISODE_DURATION_SECONDS,
     log_filename: str = DEFAULT_LOG_FILENAME,
     seed: Optional[int] = None,
 ) -> None:
-    env = TrainingEnv(spawner_seed=seed)
+    env = TrainingEnv(spawner_seed=seed, evaluator=evaluator)
     max_steps_per_episode = ceil(max_duration_seconds / SIMULATION_STEP_SECONDS)
 
     os.makedirs(os.path.dirname(log_filename) or ".", exist_ok=True)
@@ -230,7 +232,7 @@ def train(
                 print(
                     f"Ep {episode}/{num_episodes} | Return: {total_reward:.3f} | "
                     f"Steps: {episode_steps} ({duration_s}s) | Reason: {finish_reason} | "
-                    f"Elapsed: {elapsed:.1f}s"
+                    f"Touched: {touched_ball} | Elapsed: {elapsed:.1f}s"
                 )
 
             if episode % SAVE_FREQ == 0:
@@ -284,8 +286,17 @@ def main() -> int:
         help="Path to pre-trained blue strategy weights .pt file",
     )
 
+    parser.add_argument(
+        "--task",
+        type=str,
+        choices=["touch", "shoot"],
+        default="shoot",
+        help="Training task objective: 'touch' or 'shoot' (default: shoot)",
+    )
+
     args = parser.parse_args()
 
+    evaluator = TouchAndShootEvaluator() if args.task == "shoot" else TouchEvaluator()
     blue_strategy = _load_strategy(args.blue_strategy, checkpoint_path=args.weights)
     yellow_strategy = _load_strategy(args.yellow_strategy)
 
@@ -293,6 +304,7 @@ def main() -> int:
         blue_strategy=blue_strategy,
         yellow_strategy=yellow_strategy,
         num_episodes=args.episodes,
+        evaluator=evaluator,
         max_duration_seconds=args.max_duration_seconds,
         log_filename=args.log_filename,
         seed=args.seed,
