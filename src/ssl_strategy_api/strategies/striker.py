@@ -1,6 +1,9 @@
 import os
 from typing import Mapping, Optional
 import numpy as np
+from rsoccer_gym.Render import ball
+from rsoccer_gym.Render import ball
+from rsoccer_gym.Render.robot import Robot
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,6 +22,12 @@ class StrikerStrategy:
 
         self.actor = Actor(state_dim=12, action_dim=5)
         self.critic = Critic(state_dim=12)
+        #self.actor, self.critic = ActorCriticNet(state_dim=12, action_dim=5)
+       # self.network = ActorCriticNet(state_dim=12, action_dim=5)
+# If you need to access them specifically later, do something like:
+        #self.actor = self.network.actor
+        #self.critic = self.network.critic
+        
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3)
@@ -53,7 +62,11 @@ class StrikerStrategy:
         self.values.append(val)
 
         controlled_id = config.controlled_robot_ids[0]
-        return self.create_intents(action, controlled_id)
+
+        # Get actual robot and ball objects
+        striker = state.robots_blue.get(controlled_id)
+        ball = state.ball
+        return self.create_intents(action, controlled_id, striker, ball)
 
     def finish(self, final_reward: float = 0.0) -> None:
         """Trains the model using accumulated step-by-step trajectory rewards."""
@@ -101,17 +114,44 @@ class StrikerStrategy:
             ball.x_m, ball.y_m, ball.vx_mps, ball.vy_mps
         ], dtype=torch.float32).unsqueeze(0)
 
-    def create_intents(self, action_t: torch.Tensor, robot_id: int) -> Mapping[int, RobotIntent]:
+    def create_intents(self, action_t: torch.Tensor, robot_id: int, striker: Robot, ball: ball.Ball) -> Mapping[int, RobotIntent]:
         action = action_t.detach().numpy().flatten()
+        dx = ball.x_m - striker.x_m
+        dy = ball.y_m - striker.y_m
+
+        distance = float(np.hypot(dx, dy))
+
+        # Direction toward opponent goal
+        goal_direction = np.arctan2(
+            -striker.y_m,
+            1.0 - striker.x_m
+        )
+
+        angle_error = goal_direction - striker.heading_rad
+
+        angle_error = np.arctan2(
+            np.sin(angle_error),
+            np.cos(angle_error)
+        )
+
+        # Shoot when close enough to the ball
+        # and approximately facing the opponent goal
+        should_kick = (
+            distance < 0.50
+            and abs(angle_error) < 0.5
+        )
         return {
             robot_id: RobotIntent(
                 vx_mps=float(np.clip(action[0], -2.0, 2.0)),
                 vy_mps=float(np.clip(action[1], -2.0, 2.0)),
-                angular_velocity_rad_s=float(np.clip(action[2], -3.0, 3.0)),
-                kick_speed_mps=float(np.clip(action[3], 0.0, 5.0)),
-                dribbler=bool(action[4] > 0.0),
+                angular_velocity_rad_s=float(
+                    np.clip(action[2], -3.0, 3.0)
+                ),
+                kick_speed_mps=4.0 if should_kick else 0.0,
+                dribbler=distance < 0.50,
             )
         }
+
 
     def compute_gae_and_returns(
         self, rewards: list, values: Tensor, gamma=0.99, gae_lambda=0.95
@@ -193,6 +233,8 @@ class Actor(nn.Module):
             nn.ReLU(),
         )
         self.mean = nn.Linear(64, action_dim)
+        with torch.no_grad():
+            self.mean.bias[3] = 1.0
         # Reduced initial exploration noise (e^-0.5 ~ 0.6) to prevent directional chatter
         self.log_std = nn.Parameter(torch.ones(action_dim) * -0.5)
 
@@ -215,3 +257,4 @@ class Critic(nn.Module):
 
     def forward(self, state: Tensor) -> Tensor:
         return self.net(state)
+    

@@ -17,13 +17,13 @@ from ssl_strategy_api.adapters.rsoccer import (
 from ssl_strategy_api.helpers import BallSpawner
 from ssl_strategy_api.run_demos.reward_evaluators.touch_evaluator import TouchEvaluator
 
-SIMULATION_STEP_SECONDS = 0.025
-DEFAULT_EPISODE_DURATION_SECONDS = 5.0
+SIMULATION_STEP_SECONDS = 0.025#0.05#0.025
+DEFAULT_EPISODE_DURATION_SECONDS = 10.0
 BLUE_ROBOT_ID = 0
 YELLOW_ROBOT_ID = 0
 RIGHT_SIDE_MARGIN_M = 0.20
 BALL_IDLE_SPEED_MPS = 0.06
-DEFAULT_NUM_EPISODES = 10000
+DEFAULT_NUM_EPISODES = 5000
 SAVE_FREQ = 500
 WEIGHTS_DIR = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weights/striker/"
 WEIGHTS_DIR_THIS_RUN = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weights/striker/run_{time.strftime('%Y%m%d_%H%M%S')}/"
@@ -53,7 +53,7 @@ class TrainingEnv(SSLBaseEnv):
             n_robots_blue=1,
             n_robots_yellow=1,
             time_step=SIMULATION_STEP_SECONDS,
-            render_mode=None
+            render_mode="human"
         )
         self.canonical_field = FieldGeometry(
             length_m=self.field.length,

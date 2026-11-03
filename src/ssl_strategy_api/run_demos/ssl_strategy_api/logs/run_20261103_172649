@@ -1,0 +1,2 @@
+episode,total_reward,steps,duration_seconds,finish_reason,touched_ball
+20,-174.2601,200,5.0,out_of_time,0

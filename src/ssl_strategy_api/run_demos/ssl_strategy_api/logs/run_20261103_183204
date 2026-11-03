@@ -1,0 +1,2 @@
+episode,total_reward,steps,duration_seconds,finish_reason,touched_ball
+20,-454.2646,67,1.675,goal_area_foul,0

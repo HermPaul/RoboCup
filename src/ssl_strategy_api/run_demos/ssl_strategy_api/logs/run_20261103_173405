@@ -1,0 +1,8 @@
+episode,total_reward,steps,duration_seconds,finish_reason,touched_ball
+20,-467.7557,151,3.775,goal_area_foul,0
+40,225.8733,200,5.0,out_of_time,0
+60,-1041.9517,200,5.0,out_of_time,0
+80,-393.2337,200,5.0,out_of_time,0
+100,456.7452,200,5.0,out_of_time,0
+120,183.6324,200,5.0,out_of_time,0
+140,-115.369,104,2.6,out_or_idle_out-of-bounds,0
