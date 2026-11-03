@@ -3,6 +3,7 @@ import csv
 from importlib import import_module
 from math import ceil
 import os
+from pathlib import Path
 import time
 from typing import Any, Dict, Optional
 
@@ -25,9 +26,10 @@ RIGHT_SIDE_MARGIN_M = 0.20
 BALL_IDLE_SPEED_MPS = 0.06
 DEFAULT_NUM_EPISODES = 5000
 SAVE_FREQ = 500
-WEIGHTS_DIR = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weights/striker/"
-WEIGHTS_DIR_THIS_RUN = f"ssl_strategy_api/src/ssl_strategy_api/strategies/weights/striker/run_{time.strftime('%Y%m%d_%H%M%S')}/"
-DEFAULT_LOG_FILENAME = f"ssl_strategy_api/logs/run_{time.strftime('%Y%m%d_%H%M%S')}"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+WEIGHTS_DIR = Path(__file__).resolve().parents[1] / "strategies" / "weights" / "striker"
+WEIGHTS_DIR_THIS_RUN = WEIGHTS_DIR / f"run_{time.strftime('%Y%m%d_%H%M%S')}"
+DEFAULT_LOG_FILENAME = str(PROJECT_ROOT / "logs" / f"run_{time.strftime('%Y%m%d_%H%M%S')}.csv")
 LOG_FREQ = 20
 
 class TrainingEnv(SSLBaseEnv):
@@ -37,6 +39,7 @@ class TrainingEnv(SSLBaseEnv):
         self,
         spawner_seed: Optional[int] = None,
         evaluator: Optional[TouchEvaluator] = None,
+        render_mode=None,
     ):
         self.blue_config = TeamConfig(
             team=TeamColor.BLUE,
@@ -53,7 +56,7 @@ class TrainingEnv(SSLBaseEnv):
             n_robots_blue=1,
             n_robots_yellow=1,
             time_step=SIMULATION_STEP_SECONDS,
-            render_mode="human"
+            render_mode=render_mode,
         )
         self.canonical_field = FieldGeometry(
             length_m=self.field.length,
@@ -64,6 +67,11 @@ class TrainingEnv(SSLBaseEnv):
         self.ball_spawner = BallSpawner(seed=spawner_seed)
         self.evaluator = evaluator or TouchEvaluator()
         self.latest_info: Dict[str, Any] = {}
+
+    def reset(self, *, seed=None, options=None):
+        self.evaluator.reset()
+        self.latest_info = {}
+        return super().reset(seed=seed, options=options)
 
     def _get_commands(self, commands):
         return commands
@@ -146,8 +154,9 @@ def train(
     max_duration_seconds: float = DEFAULT_EPISODE_DURATION_SECONDS,
     log_filename: str = DEFAULT_LOG_FILENAME,
     seed: Optional[int] = None,
+    render: bool = False,
 ) -> None:
-    env = TrainingEnv(spawner_seed=seed)
+    env = TrainingEnv(spawner_seed=seed, render_mode="human" if render else None)
     max_steps_per_episode = ceil(max_duration_seconds / SIMULATION_STEP_SECONDS)
 
     os.makedirs(os.path.dirname(log_filename) or ".", exist_ok=True)
@@ -260,6 +269,8 @@ def main() -> int:
         help="Max duration per episode in seconds (default: 5.0)",
     )
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--render", action=argparse.BooleanOptionalAction, default=False,
+                        help="Show the simulator while training")
     parser.add_argument(
         "--log-filename",
         type=str,
@@ -296,6 +307,7 @@ def main() -> int:
         max_duration_seconds=args.max_duration_seconds,
         log_filename=args.log_filename,
         seed=args.seed,
+        render=args.render,
     )
     return 0
 

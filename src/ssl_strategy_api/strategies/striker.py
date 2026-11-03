@@ -1,16 +1,13 @@
 import os
 from typing import Mapping, Optional
 import numpy as np
-from rsoccer_gym.Render import ball
-from rsoccer_gym.Render import ball
-from rsoccer_gym.Render.robot import Robot
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch import Tensor
 from torch.distributions import Normal
 
-from ssl_strategy_api.models import RobotIntent, TeamColor, TeamConfig, WorldState
+from ssl_strategy_api.models import BallState, RobotIntent, RobotState, TeamColor, TeamConfig, WorldState
 
 
 class StrikerStrategy:
@@ -66,16 +63,17 @@ class StrikerStrategy:
         # Get actual robot and ball objects
         striker = state.robots_blue.get(controlled_id)
         ball = state.ball
-        return self.create_intents(action, controlled_id, striker, ball)
+        goal_x = config.attack_direction_x * state.field.length_m / 2
+        return self.create_intents(action, controlled_id, striker, ball, goal_x)
 
     def finish(self, final_reward: float = 0.0) -> None:
         """Trains the model using accumulated step-by-step trajectory rewards."""
-        if len(self.values) <= 1 or len(self.rewards) == 0:
+        if not self.values or not self.rewards:
             self.reset()
             return
 
-        values_t = torch.stack(self.values).squeeze()
-        log_probs_t = torch.stack(self.log_probs).squeeze()
+        values_t = torch.stack(self.values).reshape(-1)
+        log_probs_t = torch.stack(self.log_probs).reshape(-1)
 
         # Compute GAE across the list of per-step rewards
         returns, advantages = self.compute_gae_and_returns(self.rewards, values_t)
@@ -114,7 +112,8 @@ class StrikerStrategy:
             ball.x_m, ball.y_m, ball.vx_mps, ball.vy_mps
         ], dtype=torch.float32).unsqueeze(0)
 
-    def create_intents(self, action_t: torch.Tensor, robot_id: int, striker: Robot, ball: ball.Ball) -> Mapping[int, RobotIntent]:
+    def create_intents(self, action_t: Tensor, robot_id: int, striker: RobotState,
+                       ball: BallState, goal_x: float) -> Mapping[int, RobotIntent]:
         action = action_t.detach().numpy().flatten()
         dx = ball.x_m - striker.x_m
         dy = ball.y_m - striker.y_m
@@ -124,7 +123,7 @@ class StrikerStrategy:
         # Direction toward opponent goal
         goal_direction = np.arctan2(
             -striker.y_m,
-            1.0 - striker.x_m
+            goal_x - striker.x_m
         )
 
         angle_error = goal_direction - striker.heading_rad
@@ -170,12 +169,10 @@ class StrikerStrategy:
             advantages.insert(0, gae)
 
         advantages = torch.tensor(advantages, dtype=torch.float32)
-        returns = advantages + values
+        returns = advantages + values_detached
 
         if len(advantages) > 1:
             advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
-        else:
-            advantages = advantages - advantages.mean()
 
         return returns, advantages
 
@@ -257,4 +254,3 @@ class Critic(nn.Module):
 
     def forward(self, state: Tensor) -> Tensor:
         return self.net(state)
-    

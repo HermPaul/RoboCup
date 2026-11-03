@@ -12,6 +12,9 @@ class TouchEvaluator:
     """Evaluates per-step dense rewards and finish criteria."""
 
     def __init__(self):
+        self.reset()
+
+    def reset(self) -> None:
         self.prev_angle_err: Optional[float] = None
         self.prev_distance: Optional[float] = None
         self.already_touched: bool = False
@@ -52,7 +55,7 @@ class TouchEvaluator:
         angle_closed = self.prev_angle_err - current_angle_err
         alignment_score = float(np.cos(angle_to_ball))
 
-        goal_x = (env.field.goal_width / 2.0) * env.blue_config.attack_direction_x
+        goal_x = (env.field.length / 2.0) * env.blue_config.attack_direction_x
         goal_y = 0.0
 
         bg_dx = goal_x - ball.x_m
@@ -60,7 +63,7 @@ class TouchEvaluator:
         bg_dist = float(np.hypot(bg_dx, bg_dy))
 
         rb_dx = striker.x_m - ball.x_m
-        rb_dy = ball.y_m - striker.y_m
+        rb_dy = striker.y_m - ball.y_m
         rb_dist = float(np.hypot(rb_dx, rb_dy))
 
         if rb_dist > 1e-5 and bg_dist > 1e-5:
@@ -80,10 +83,9 @@ class TouchEvaluator:
 
         # Ball velocity toward opponent goal
         ball_vel_toward_goal = ball.vx_mps * env.blue_config.attack_direction_x
-        ball_speed = float(np.hypot(ball.vx_mps, ball.vy_mps))
         
         # Reward ball moving forward regardless of strict infrared state
-        propulsion_reward = (ball_speed * 5.0) if (rb_dist < 0.2) else 0.0
+        propulsion_reward = max(0.0, ball_vel_toward_goal) * 5.0 if rb_dist < 0.2 else 0.0
 
         # 3. Dense Reward Formulation (Softened step penalty)
         dense_reward = (
@@ -115,8 +117,9 @@ class TouchEvaluator:
         finish_reason = "in_progress"
         
         if respawn_reason == "goal":
-            reward += 1000.0 
-            finish_reason = "goal_scored"
+            scored = ball.x_m * env.blue_config.attack_direction_x > 0
+            reward += 1000.0 if scored else -1000.0
+            finish_reason = "goal_scored" if scored else "own_goal"
             done = True
         elif blue_in_opponent_goal_area:
             done = True
