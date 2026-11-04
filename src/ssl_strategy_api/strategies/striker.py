@@ -10,7 +10,7 @@ from torch.distributions import Normal
 
 from ssl_strategy_api.models import RobotIntent, TeamColor, TeamConfig, WorldState
 
-STD_CHECKPOINT = "src/ssl_strategy_api/strategies/weights/striker/latest.pt"
+STD_CHECKPOINT = "src/ssl_strategy_api/strategies/weights/striker/best.pt"
 
 class StrikerStrategy:
 
